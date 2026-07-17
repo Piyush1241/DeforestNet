@@ -14,23 +14,42 @@ const LOG_POOL = [
 export default function LiveConsole({ lines }) {
   const bodyRef = useRef(null);
   const [log, setLog] = useState([]);
+  const prevLinesRef = useRef([]);
 
-  // 1. Sync state with incoming real activity lines from database
+  // 1. Initial mount load
   useEffect(() => {
     if (lines && lines.length > 0) {
       setLog(lines);
+      prevLinesRef.current = lines;
     } else {
-      setLog(LOG_POOL.slice(0, 4));
+      const initialLogs = LOG_POOL.slice(0, 4).map(l => {
+        const time = new Date().toTimeString().slice(0, 8);
+        return `${time} - ${l}`;
+      });
+      setLog(initialLogs);
+      prevLinesRef.current = [];
     }
+  }, []);
+
+  // 2. Safely append new real database log events when they arrive, without overwriting existing logs
+  useEffect(() => {
+    if (!lines || lines.length === 0) return;
+    
+    // Find any new lines that aren't in our previous list
+    const addedLines = lines.filter(l => !prevLinesRef.current.includes(l));
+    if (addedLines.length > 0) {
+      setLog(prev => [...prev, ...addedLines].slice(-20)); // keep last 20 lines
+    }
+    prevLinesRef.current = lines;
   }, [lines]);
 
-  // 2. Append active background checks to make the console look alive
+  // 3. Append active background simulated ticks
   useEffect(() => {
     const iv = setInterval(() => {
       setLog((prev) => {
         const next = LOG_POOL[Math.floor(Math.random() * LOG_POOL.length)];
         const time = new Date().toTimeString().slice(0, 8);
-        return [...prev.slice(-9), `${time} - ${next}`];
+        return [...prev.slice(-19), `${time} - ${next}`];
       });
     }, 3000);
     return () => clearInterval(iv);
