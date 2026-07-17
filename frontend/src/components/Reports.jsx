@@ -38,11 +38,13 @@ export default function Reports({ reports = [], alerts = [], onRefresh }) {
 
   const handleAuthorize = async (reportId) => {
     setSentMap(prev => ({ ...prev, [reportId]: true }));
-    // Simulate updating backend status
-    try {
-      // In a real app we would make a PUT request to update the report/alert status
-    } catch (err) {
-      console.error("Failed to authorize report:", err);
+    if (activeReport && activeReport.alert_id) {
+      try {
+        await apiService.updateAlertStatus(activeReport.alert_id, "Authorized");
+        if (onRefresh) onRefresh();
+      } catch (err) {
+        console.error("Failed to authorize report:", err);
+      }
     }
   };
 
@@ -77,7 +79,7 @@ export default function Reports({ reports = [], alerts = [], onRefresh }) {
       id: activeReport.id,
       incidentId: `REPORT-00${activeReport.id}`,
       location: `Lat ${alert.latitude?.toFixed(4) || '-3.525'}, Lon ${alert.longitude?.toFixed(4) || '-62.284'}`,
-      agentName: 'CLAUDE-3.5-SONNET',
+      agentName: 'FORESTGUARD-GEMINI-2.0',
       summary: [
         `Verified forest cover loss of ${alert.area_ha || 0.1} hectares.`,
         isProtected ? `Location inside protected boundary of ${paName}.` : `Location outside protected boundaries.`,

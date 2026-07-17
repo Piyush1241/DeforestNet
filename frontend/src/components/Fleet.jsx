@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Satellite, RadioTower, Plane } from 'lucide-react';
 
 const NODES = [
@@ -38,13 +38,53 @@ function Radar() {
 }
 
 export default function Fleet() {
+  const [nodes, setNodes] = useState(NODES);
+  const [metrics, setMetrics] = useState(METRICS);
+  const [coverage, setCoverage] = useState(94.2);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 1. Fluctuate node percentages
+      setNodes(prev => prev.map(n => {
+        let diff = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+        let newPct = Math.min(Math.max(n.pct + diff, 60), 100);
+        let detail = n.detail;
+        if (n.name.includes('Drone')) {
+          detail = `batt ${newPct}%`;
+        } else if (n.name.includes('GLAD')) {
+          detail = `coverage ${newPct}%`;
+        }
+        return {
+          ...n,
+          pct: newPct,
+          detail
+        };
+      }));
+
+      // 2. Fluctuate system health metrics
+      setMetrics(prev => [
+        { ...prev[0], value: `${Math.floor(Math.random() * 8) + 28}ms` }, // Latency 28ms - 36ms
+        { ...prev[1], value: `${Math.floor(Math.random() * 12) + 62}%` },  // AI load 62% - 74%
+        { ...prev[2], value: `${(80 + Math.random() * 3).toFixed(1)}%` },  // Memory 80% - 83%
+      ]);
+
+      // 3. Fluctuate scanning coverage
+      setCoverage(prev => {
+        let diff = (Math.random() * 0.4 - 0.2);
+        return Math.min(Math.max(prev + diff, 93.5), 95.5);
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div>
       <div className="fg-page-title">Autonomous Fleet & Sensor Status</div>
 
       <div className="fg-radar-wrap"><Radar /></div>
       <div style={{ textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-dim)', marginBottom: 10 }}>
-        SCANNING… COVERAGE AREA 94%
+        SCANNING… COVERAGE AREA {coverage.toFixed(2)}%
       </div>
 
       <div className="fg-metric-row">
@@ -52,7 +92,7 @@ export default function Fleet() {
       </div>
 
       <div className="fg-grid">
-        {NODES.map((n) => {
+        {nodes.map((n) => {
           const Icon = n.icon;
           return (
             <div className="fg-fleet-item" key={n.name}>
@@ -69,7 +109,7 @@ export default function Fleet() {
 
       <div className="fg-page-title" style={{ marginTop: 20 }}>System Health</div>
       <div className="fg-spark-row">
-        {METRICS.map((m) => (
+        {metrics.map((m) => (
           <div className="fg-spark-card" key={m.label}>
             <div className="val">{m.value}</div>
             <div className="lbl">{m.label}</div>

@@ -116,3 +116,45 @@ def trigger_agent_check(region_name: str = "Amazon Wildlife Reserve", db: Sessio
     except Exception as e:
         logger.error(f"Agent pipeline failed for region {region_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent pipeline execution failed: {str(e)}")
+
+@router.get("/{alert_id}/image/{timeframe}")
+def get_alert_timeframe_image(alert_id: int, timeframe: str, db: Session = Depends(get_db)):
+    """Serves before or after satellite image as PNG processed on the fly"""
+    from backend.config import IMAGERY_DIR
+    from backend.utils.image_processing import contrast_stretch
+    from fastapi import Response
+    from PIL import Image
+    import cv2
+    import io
+    
+    if timeframe not in ("before", "after"):
+        raise HTTPException(status_code=400, detail="Invalid timeframe. Must be 'before' or 'after'.")
+        
+    npy_path = IMAGERY_DIR / f"alert_{alert_id}" / timeframe / "rgb.npy"
+    if not npy_path.exists():
+        raise HTTPException(status_code=404, detail=f"Satellite imagery not found for alert {alert_id} ({timeframe})")
+        
+    try:
+        bgr = np.load(str(npy_path))
+        # Stretched BGR
+        stretched = contrast_stretch(bgr)
+        # Convert to PNG bytes
+        rgb = cv2.cvtColor(stretched, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(rgb)
+        
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return Response(content=buf.getvalue(), media_type="image/png")
+    except Exception as e:
+        logger.error(f"Error serving timeframe image for alert {alert_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error processing image")
+
+@router.get("/{alert_id}/comparison")
+def get_alert_comparison_image(alert_id: int, db: Session = Depends(get_db)):
+    """Serves the generated 2x2 comparison image for an alert"""
+    from backend.config import IMAGERY_DIR
+    from fastapi.responses import FileResponse
+    comp_path = IMAGERY_DIR / f"alert_{alert_id}" / "comparison.png"
+    if not comp_path.exists():
+        raise HTTPException(status_code=404, detail="Comparison image not found for this alert")
+    return FileResponse(str(comp_path), media_type="image/png")

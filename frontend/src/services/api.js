@@ -51,5 +51,13 @@ export const apiService = {
 
   getReportDownloadUrl(reportId) {
     return `${BASE_URL}/reports/${reportId}/download`;
+  },
+
+  getAlertImageUrl(alertId, timeframe) {
+    return `${BASE_URL}/alerts/${alertId}/image/${timeframe}`;
+  },
+
+  getAlertComparisonUrl(alertId) {
+    return `${BASE_URL}/alerts/${alertId}/comparison`;
   }
 };
