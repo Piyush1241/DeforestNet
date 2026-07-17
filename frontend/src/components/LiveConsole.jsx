@@ -13,21 +13,33 @@ const LOG_POOL = [
 
 export default function LiveConsole({ lines }) {
   const bodyRef = useRef(null);
-  const [log, setLog] = useState(lines || LOG_POOL.slice(0, 4));
+  const [log, setLog] = useState([]);
 
+  // 1. Sync state with incoming real activity lines from database
   useEffect(() => {
-    if (lines) return;
+    if (lines && lines.length > 0) {
+      setLog(lines);
+    } else {
+      setLog(LOG_POOL.slice(0, 4));
+    }
+  }, [lines]);
+
+  // 2. Append active background checks to make the console look alive
+  useEffect(() => {
     const iv = setInterval(() => {
       setLog((prev) => {
         const next = LOG_POOL[Math.floor(Math.random() * LOG_POOL.length)];
-        return [...prev.slice(-7), next];
+        const time = new Date().toTimeString().slice(0, 8);
+        return [...prev.slice(-9), `${time} - ${next}`];
       });
-    }, 2800);
+    }, 3000);
     return () => clearInterval(iv);
-  }, [lines]);
+  }, []);
 
   useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    if (bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
   }, [log]);
 
   return (
@@ -41,7 +53,7 @@ export default function LiveConsole({ lines }) {
       <div className="fg-console-body" ref={bodyRef}>
         {log.map((l, i) => (
           <div key={i}>
-            <span className="ts">[{String(i).padStart(2, '0')}]</span>{l}
+            <span className="ts">[{String(i + 1).padStart(2, '0')}]</span> {l}
           </div>
         ))}
         <span className="fg-console-cursor" />
