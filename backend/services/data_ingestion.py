@@ -245,93 +245,246 @@ class DataIngestionService:
         after_dir.mkdir(parents=True, exist_ok=True)
 
         if self.simulation:
-            logger.info(f"[Simulation] Generating mock satellite imagery bands for alert {alert_id} at ({lat}, {lon})")
-
-            height, width = 200, 200
-
-
-            before_red = np.random.normal(0.08, 0.02, (height, width))
-            before_nir = np.random.normal(0.75, 0.05, (height, width))
-            before_green = np.random.normal(0.35, 0.03, (height, width))
-            before_blue = np.random.normal(0.06, 0.01, (height, width))
-
-            # Clip bands to valid reflectance [0, 1.0]
-            before_red = np.clip(before_red, 0, 1.0)
-            before_nir = np.clip(before_nir, 0, 1.0)
-            before_green = np.clip(before_green, 0, 1.0)
-            before_blue = np.clip(before_blue, 0, 1.0)
-
-            # Save before bands as numpy arrays
-            np.save(before_dir / "red.npy", before_red)
-            np.save(before_dir / "nir.npy", before_nir)
-            # Combine to an RGB image
-            before_rgb = np.stack([before_blue, before_green, before_red], axis=-1)  # BGR for OpenCV
-            np.save(before_dir / "rgb.npy", before_rgb)
-
-            # After imagery: Forest with a logging road / cleared patch in the middle
-            # Let's create a deforestation patch in the center (from indices 60 to 140)
-            after_red = before_red.copy()
-            after_nir = before_nir.copy()
-            after_green = before_green.copy()
-            after_blue = before_blue.copy()
-
-            # Deforestation patch: high Red (bare ground), low NIR (no vegetation), low Green
-            # Simulate a diagonal logging track or square clearing
-            # We'll make a cleared square block in the center
-            start_y, end_y = 60, 140
-            start_x, end_x = 70, 130
-
-            after_red[start_y:end_y, start_x:end_x] = np.random.normal(0.38, 0.03, (end_y - start_y, end_x - start_x))
-            after_nir[start_y:end_y, start_x:end_x] = np.random.normal(0.16, 0.02, (end_y - start_y, end_x - start_x))
-            after_green[start_y:end_y, start_x:end_x] = np.random.normal(0.18, 0.02, (end_y - start_y, end_x - start_x))
-            after_blue[start_y:end_y, start_x:end_x] = np.random.normal(0.14, 0.02, (end_y - start_y, end_x - start_x))
-
-            # Also add some logging trails
-            # Trail 1: diagonal road
-            for i in range(200):
-                if 20 <= i <= 180:
-                    road_width = 3
-                    after_red[i, max(0, i - road_width):min(199, i + road_width)] = 0.35
-                    after_nir[i, max(0, i - road_width):min(199, i + road_width)] = 0.18
-                    after_green[i, max(0, i - road_width):min(199, i + road_width)] = 0.20
-                    after_blue[i, max(0, i - road_width):min(199, i + road_width)] = 0.13
-
-            # Clip bands
-            after_red = np.clip(after_red, 0, 1.0)
-            after_nir = np.clip(after_nir, 0, 1.0)
-            after_green = np.clip(after_green, 0, 1.0)
-            after_blue = np.clip(after_blue, 0, 1.0)
-
-            # Save after bands
-            np.save(after_dir / "red.npy", after_red)
-            np.save(after_dir / "nir.npy", after_nir)
-            after_rgb = np.stack([after_blue, after_green, after_red], axis=-1)  # BGR
-            np.save(after_dir / "rgb.npy", after_rgb)
-
-            return {
-                "before": {
-                    "red": str(before_dir / "red.npy"),
-                    "nir": str(before_dir / "nir.npy"),
-                    "rgb": str(before_dir / "rgb.npy")
-                },
-                "after": {
-                    "red": str(after_dir / "red.npy"),
-                    "nir": str(after_dir / "nir.npy"),
-                    "rgb": str(after_dir / "rgb.npy")
-                }
-            }
+            return self.fetch_satellite_imagery_mock(lat, lon, alert_id)
         else:
-            # Real Sentinel Hub call using oauth client
-            # Here we would authenticate to Copernicus Data Space and download Sentinel-2 imagery
-            # Because real Sentinel-Hub calls take multiple configuration settings,
-            # we write the layout and fall back to simulation if credentials aren't ready.
             logger.info(f"Querying Sentinel Hub API for coordinates: ({lat}, {lon})")
             if not SENTINEL_HUB_CLIENT_ID or not SENTINEL_HUB_CLIENT_SECRET:
                 logger.warning("Sentinel Hub API credentials missing. Falling back to Simulation Mode.")
-                self.simulation = True
-                return self.fetch_satellite_imagery(lat, lon, alert_id)
+                return self.fetch_satellite_imagery_mock(lat, lon, alert_id)
 
-            # If credentials exist, we would make the request to Sentinel Hub Process API
-            # For safety of runtime, we'll write this skeleton but perform simulation
-            self.simulation = True
-            return self.fetch_satellite_imagery(lat, lon, alert_id)
+            try:
+                # 1. Fetch Alert Date from Database to establish context windows
+                from backend.database.database import SessionLocal
+                from backend.models.alert import Alert
+
+                db = SessionLocal()
+                detected_at = None
+                try:
+                    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+                    if alert:
+                        detected_at = alert.detected_at
+                finally:
+                    db.close()
+
+                if not detected_at:
+                    detected_at = datetime.now()
+
+                # 2. Define before and after date ranges
+                before_from = (detected_at - timedelta(days=45)).strftime("%Y-%m-%dT00:00:00Z")
+                before_to = (detected_at - timedelta(days=15)).strftime("%Y-%m-%dT23:59:59Z")
+                after_from = detected_at.strftime("%Y-%m-%dT00:00:00Z")
+                after_to = (detected_at + timedelta(days=15)).strftime("%Y-%m-%dT23:59:59Z")
+
+                logger.info("Fetching BEFORE imagery from Sentinel Hub...")
+                before_red, before_nir, before_green, before_blue = self._query_sentinel_hub(
+                    lat, lon, before_from, before_to
+                )
+
+                logger.info("Fetching AFTER imagery from Sentinel Hub...")
+                after_red, after_nir, after_green, after_blue = self._query_sentinel_hub(
+                    lat, lon, after_from, after_to
+                )
+
+                # Save before bands
+                np.save(before_dir / "red.npy", before_red)
+                np.save(before_dir / "nir.npy", before_nir)
+                before_rgb = np.stack([before_blue, before_green, before_red], axis=-1)
+                np.save(before_dir / "rgb.npy", before_rgb)
+
+                # Save after bands
+                np.save(after_dir / "red.npy", after_red)
+                np.save(after_dir / "nir.npy", after_nir)
+                after_rgb = np.stack([after_blue, after_green, after_red], axis=-1)
+                np.save(after_dir / "rgb.npy", after_rgb)
+
+                return {
+                    "before": {
+                        "red": str(before_dir / "red.npy"),
+                        "nir": str(before_dir / "nir.npy"),
+                        "rgb": str(before_dir / "rgb.npy")
+                    },
+                    "after": {
+                        "red": str(after_dir / "red.npy"),
+                        "nir": str(after_dir / "nir.npy"),
+                        "rgb": str(after_dir / "rgb.npy")
+                    }
+                }
+
+            except Exception as e:
+                logger.error(f"Error calling Sentinel Hub API: {e}. Falling back to simulation.", exc_info=True)
+                return self.fetch_satellite_imagery_mock(lat, lon, alert_id)
+
+    def fetch_satellite_imagery_mock(self, lat: float, lon: float, alert_id: int) -> dict:
+        """Helper to generate mock satellite imagery files for simulation mode"""
+        before_dir = IMAGERY_DIR / f"alert_{alert_id}" / "before"
+        after_dir = IMAGERY_DIR / f"alert_{alert_id}" / "after"
+        before_dir.mkdir(parents=True, exist_ok=True)
+        after_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"[Simulation] Generating mock satellite imagery bands for alert {alert_id} at ({lat}, {lon})")
+        height, width = 200, 200
+
+        before_red = np.random.normal(0.08, 0.02, (height, width))
+        before_nir = np.random.normal(0.75, 0.05, (height, width))
+        before_green = np.random.normal(0.35, 0.03, (height, width))
+        before_blue = np.random.normal(0.06, 0.01, (height, width))
+
+        # Clip bands to valid reflectance [0, 1.0]
+        before_red = np.clip(before_red, 0, 1.0)
+        before_nir = np.clip(before_nir, 0, 1.0)
+        before_green = np.clip(before_green, 0, 1.0)
+        before_blue = np.clip(before_blue, 0, 1.0)
+
+        # Save before bands as numpy arrays
+        np.save(before_dir / "red.npy", before_red)
+        np.save(before_dir / "nir.npy", before_nir)
+        before_rgb = np.stack([before_blue, before_green, before_red], axis=-1)  # BGR for OpenCV
+        np.save(before_dir / "rgb.npy", before_rgb)
+
+        after_red = before_red.copy()
+        after_nir = before_nir.copy()
+        after_green = before_green.copy()
+        after_blue = before_blue.copy()
+
+        # Deforestation patch: high Red, low NIR
+        start_y, end_y = 60, 140
+        start_x, end_x = 70, 130
+
+        after_red[start_y:end_y, start_x:end_x] = np.random.normal(0.38, 0.03, (end_y - start_y, end_x - start_x))
+        after_nir[start_y:end_y, start_x:end_x] = np.random.normal(0.16, 0.02, (end_y - start_y, end_x - start_x))
+        after_green[start_y:end_y, start_x:end_x] = np.random.normal(0.18, 0.02, (end_y - start_y, end_x - start_x))
+        after_blue[start_y:end_y, start_x:end_x] = np.random.normal(0.14, 0.02, (end_y - start_y, end_x - start_x))
+
+        # Add logging trails
+        for i in range(200):
+            if 20 <= i <= 180:
+                road_width = 3
+                after_red[i, max(0, i - road_width):min(199, i + road_width)] = 0.35
+                after_nir[i, max(0, i - road_width):min(199, i + road_width)] = 0.18
+                after_green[i, max(0, i - road_width):min(199, i + road_width)] = 0.20
+                after_blue[i, max(0, i - road_width):min(199, i + road_width)] = 0.13
+
+        # Clip bands
+        after_red = np.clip(after_red, 0, 1.0)
+        after_nir = np.clip(after_nir, 0, 1.0)
+        after_green = np.clip(after_green, 0, 1.0)
+        after_blue = np.clip(after_blue, 0, 1.0)
+
+        # Save after bands
+        np.save(after_dir / "red.npy", after_red)
+        np.save(after_dir / "nir.npy", after_nir)
+        after_rgb = np.stack([after_blue, after_green, after_red], axis=-1)  # BGR
+        np.save(after_dir / "rgb.npy", after_rgb)
+
+        return {
+            "before": {
+                "red": str(before_dir / "red.npy"),
+                "nir": str(before_dir / "nir.npy"),
+                "rgb": str(before_dir / "rgb.npy")
+            },
+            "after": {
+                "red": str(after_dir / "red.npy"),
+                "nir": str(after_dir / "nir.npy"),
+                "rgb": str(after_dir / "rgb.npy")
+            }
+        }
+
+    def _query_sentinel_hub(self, lat: float, lon: float, from_date: str, to_date: str) -> tuple:
+        """
+        Queries Sentinel Hub Process API for the given coordinates and date range.
+        Returns:
+            (red_band, nir_band, green_band, blue_band) as numpy arrays.
+        """
+        import requests
+
+        # 1. Fetch OAuth2 Token
+        token_url = "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token"
+        payload = {
+            'grant_type': 'client_credentials',
+            'client_id': SENTINEL_HUB_CLIENT_ID,
+            'client_secret': SENTINEL_HUB_CLIENT_SECRET
+        }
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        token_res = requests.post(token_url, data=payload, headers=headers, timeout=10)
+        token_res.raise_for_status()
+        access_token = token_res.json()['access_token']
+
+        # 2. Setup BBOX (approx. 600m x 600m)
+        lat_delta = 0.003
+        lon_delta = 0.003 / math.cos(math.radians(lat))
+        bbox = [lon - lon_delta, lat - lat_delta, lon + lon_delta, lat + lat_delta]
+
+        # 3. Setup Process request
+        process_url = "https://services.sentinel-hub.com/api/v1/process"
+        
+        evalscript = """
+        //VERSION=3
+        function setup() {
+          return {
+            input: ["B04", "B08", "B03", "B02"],
+            output: { bands: 4, sampleType: "FLOAT32" }
+          };
+        }
+        function evaluatePixel(sample) {
+          return [sample.B04, sample.B08, sample.B03, sample.B02];
+        }
+        """
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Accept": "image/tiff"
+        }
+
+        process_payload = {
+            "input": {
+                "bounds": {
+                    "bbox": bbox,
+                    "properties": {
+                        "crs": "http://www.opengis.net/def/crs/EPSG/0/4326"
+                    }
+                },
+                "data": [
+                    {
+                        "type": "sentinel-2-l2a",
+                        "dataFilter": {
+                            "timeRange": {
+                                "from": from_date,
+                                "to": to_date
+                            },
+                            "mosaickingOrder": "leastRecent"
+                        }
+                    }
+                ]
+            },
+            "output": {
+                "width": 200,
+                "height": 200,
+                "responses": [
+                    {
+                        "identifier": "default",
+                        "format": {
+                            "type": "image/tiff"
+                        }
+                    }
+                ]
+            },
+            "evalscript": evalscript
+        }
+
+        response = requests.post(process_url, json=process_payload, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        # 4. Parse TIFF
+        import io
+        import rasterio
+        with rasterio.open(io.BytesIO(response.content)) as src:
+            data = src.read()
+            red = np.clip(data[0], 0, 1.0)
+            nir = np.clip(data[1], 0, 1.0)
+            green = np.clip(data[2], 0, 1.0)
+            blue = np.clip(data[3], 0, 1.0)
+            
+            return red, nir, green, blue

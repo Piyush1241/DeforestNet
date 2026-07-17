@@ -19,7 +19,7 @@ function Brand() {
     <div className="fg-brand">
       <div className="fg-brand-icon"><ShieldCheck size={18} /></div>
       <div className="fg-brand-text">
-        <h1>FOREST<span>GUARD</span></h1>
+        <h1>DEFOREST<span>NET</span></h1>
         <p>Cyber-Surveillance · Agentic AI</p>
       </div>
     </div>
@@ -62,6 +62,7 @@ export default function App() {
 
   return (
     <div className="fg-app">
+      <div className="scanline" />
       <div className="fg-layout">
         <aside className="fg-sidebar">
           <Brand />

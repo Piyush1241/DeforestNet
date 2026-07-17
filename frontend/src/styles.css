@@ -1,24 +1,24 @@
 :root {
-  --void: #050b0c;
-  --panel: #0a1517;
-  --panel-raised: #0e1e21;
-  --panel-hover: #11262a;
-  --line: #1b3438;
-  --line-bright: #24494e;
-  --mint: #2de8c4;
-  --mint-dim: #17877190;
-  --blue: #4db4ff;
-  --alert: #ff5559;
-  --alert-dim: #ff555922;
-  --amber: #ffb54d;
-  --text: #e6f5f4;
-  --text-dim: #7fa3a3;
-  --text-faint: #4a6667;
+  --void: #0e1516;
+  --panel: #161d1e;
+  --panel-raised: #1a2122;
+  --panel-hover: #242b2c;
+  --line: #2f3637;
+  --line-bright: #3b4a45;
+  --mint: #91ffe2;
+  --mint-dim: #005142;
+  --blue: #4cd6fb;
+  --alert: #ffb4ab;
+  --alert-dim: #93000a;
+  --amber: #ffb3b0;
+  --text: #dde4e5;
+  --text-dim: #bacac4;
+  --text-faint: #84948e;
 
-  --font-display: 'Orbitron', sans-serif;
-  --font-ui: 'Rajdhani', sans-serif;
-  --font-mono: 'Share Tech Mono', monospace;
-  --font-body: 'Inter', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-ui: 'Hanken Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Hanken Grotesk', sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -623,6 +623,92 @@ button { font-family: inherit; cursor: pointer; }
 .fg-fade-in { animation: fadeIn 0.35s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
+/* ---------- Forest breach map ---------- */
+.dfn-map-panel { padding: 12px; }
+.dfn-map-frame {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line-bright);
+  aspect-ratio: 16 / 10;
+}
+.dfn-map-svg { width: 100%; height: 100%; display: block; }
+
+.dfn-breach {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.dfn-breach-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--alert);
+  box-shadow: 0 0 10px 2px var(--alert);
+  display: block;
+}
+.dfn-breach-ring {
+  position: absolute;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--alert);
+  opacity: 0.7;
+  animation: breach-pulse 2.2s ease-out infinite;
+}
+@keyframes breach-pulse {
+  0% { transform: scale(0.3); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.dfn-breach-label {
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text);
+  background: #060f0ecc;
+  border: 1px solid var(--line-bright);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.dfn-overlay-stats {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 128px;
+}
+.dfn-stat-chip {
+  background: #050d0cd0;
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line-bright);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.dfn-stat-chip-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.dfn-stat-chip-head svg { color: var(--mint); }
+.dfn-stat-chip-val {
+  font-family: var(--font-display);
+  font-size: 14px;
+  margin-top: 3px;
+}
+.dfn-stat-chip-val.mint { color: var(--mint); }
+
+@media (min-width: 700px) {
+  .dfn-overlay-stats { width: 150px; top: 16px; right: 16px; }
+}
+
 /* ---------- wider viewport gutters ---------- */
 @media (min-width: 700px) {
   .fg-page-title,
@@ -643,4 +729,53 @@ button { font-family: inherit; cursor: pointer; }
 }
 @media (min-width: 900px) {
   .fg-topbar { padding: 14px 28px; }
+}
+
+/* ---------- Stitch HUD dashboard styling extensions ---------- */
+.scanline {
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+  background-size: 100% 4px;
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0.15;
+}
+
+.hud-glass {
+  background-color: rgba(14, 21, 22, 0.65);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(145, 255, 226, 0.15);
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.5); opacity: 1; }
+  80%, 100% { transform: scale(2.5); opacity: 0; }
+}
+
+.hud-scanner {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, rgba(145, 255, 226, 0.1) 50%, transparent);
+  animation: scan-y 6s linear infinite;
+  pointer-events: none;
+  z-index: 15;
+}
+@keyframes scan-y {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.dfn-map-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(145, 255, 226, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(145, 255, 226, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 5;
 }
