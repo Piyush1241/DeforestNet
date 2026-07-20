@@ -143,7 +143,9 @@ class DataIngestionService:
                     "details": json.dumps({
                         "satellite": "Sentinel-2",
                         "cloud_cover_percent": round(random.uniform(0.0, 15.0), 1),
-                        "sensor": "MSI"
+                        "sensor": "MSI",
+                        "simulated": True,
+                        "source": "Simulation Generator"
                     })
                 })
             return alerts

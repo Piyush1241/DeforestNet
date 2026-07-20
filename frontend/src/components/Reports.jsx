@@ -160,7 +160,10 @@ export default function Reports({ reports = [], alerts = [], onRefresh }) {
           {reports.map((r, idx) => {
             const associatedAlert = alerts.find(a => a.id === r.alert_id) || {};
             const alertDetails = typeof associatedAlert.details === 'string' ? JSON.parse(associatedAlert.details) : (associatedAlert.details || {});
-            const isSim = alertDetails?.simulated || alertDetails?.source === 'Simulation Generator';
+            // Fallback: If coordinates do not match the real GFW query coordinates, tag as simulated
+            const isSim = alertDetails?.simulated || 
+                          alertDetails?.source === 'Simulation Generator' || 
+                          (associatedAlert.latitude && Math.abs(associatedAlert.latitude - (-3.525600)) > 0.001);
             return (
               <button
                 key={r.id}
@@ -200,7 +203,9 @@ export default function Reports({ reports = [], alerts = [], onRefresh }) {
             {(() => {
               const associatedAlert = alerts.find(a => a.id === activeReport?.alert_id) || {};
               const alertDetails = typeof associatedAlert.details === 'string' ? JSON.parse(associatedAlert.details) : (associatedAlert.details || {});
-              const isSim = alertDetails?.simulated || alertDetails?.source === 'Simulation Generator';
+              const isSim = alertDetails?.simulated || 
+                            alertDetails?.source === 'Simulation Generator' || 
+                            (associatedAlert.latitude && Math.abs(associatedAlert.latitude - (-3.525600)) > 0.001);
               return (
                 <span style={{
                   background: isSim ? 'rgba(255, 179, 176, 0.1)' : 'rgba(145, 255, 226, 0.1)',
