@@ -27,9 +27,6 @@ class AgentPlanner:
         if self.provider == "mock":
             decision = self._decide_mock_state_machine(memory, db)
         else:
-<<<<<<< Updated upstream
-            return self._decide_llm(memory, db)
-=======
             decision = self._decide_llm(memory, db)
             
         # Intercept and block notification tool if human oversight is active
@@ -43,7 +40,6 @@ class AgentPlanner:
             }
             
         return decision
->>>>>>> Stashed changes
 
     def _decide_mock_state_machine(self, memory, db) -> dict:
         """Deterministic state machine implementing the exact workflow of the PRD"""
@@ -474,17 +470,9 @@ class AgentPlanner:
 
         if not response_text:
             logger.warning("LLM API failed. Falling back to rule-based state machine.")
-<<<<<<< Updated upstream
-            # For runtime robustness, fallback to mock state machine
             if db is not None:
                 return self._decide_mock_state_machine(memory, db)
             return {"error": "LLM planning call failed and no database context provided for fallback."}
-=======
-            if db is not None:
-                return self._decide_mock_state_machine(memory, db)
-            else:
-                return {"error": "LLM planning call failed and no database context provided for fallback."}
->>>>>>> Stashed changes
 
         try:
             return self._parse_llm_json(response_text)

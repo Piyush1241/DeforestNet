@@ -29,7 +29,7 @@ export default function Reports({ reports = [], alerts = [], onRefresh }) {
         setTimeout(() => {
           setIsCompiling(false);
           setCompileStatus('');
-          if (onRefresh) onRefresh();
+          if (onRefresh) onRefresh({ showLoading: false });
         }, 1000);
       }, 1000);
       
@@ -51,7 +51,7 @@ export default function Reports({ reports = [], alerts = [], onRefresh }) {
     try {
       await apiService.updateAlertStatus(activeReport.alert_id, "Authorized");
       setSentMap(prev => ({ ...prev, [reportId]: true }));
-      if (onRefresh) await onRefresh();
+      if (onRefresh) await onRefresh({ showLoading: false });
     } catch (err) {
       console.error("Failed to authorize report:", err);
       setAuthorizationError(err.message || 'Unable to authorize the notification.');

@@ -133,7 +133,6 @@ from pathlib import Path
 # Register API Router
 app.include_router(api_router, prefix="/api")
 
-<<<<<<< Updated upstream
 # Serve Frontend static assets in production
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
@@ -157,20 +156,8 @@ else:
     def read_root():
         """Welcome and metadata endpoint (dev fallback)"""
         return {
-            "app": "ForestGuard API Backend",
+            "app": "DeForestNet API Backend",
             "status": "Online",
             "sdg_alignment": ["SDG 13: Climate Action", "SDG 15: Life on Land"],
             "api_docs": "/docs"
         }
-
-=======
-@app.get("/")
-def read_root():
-    """Welcome and metadata endpoint"""
-    return {
-        "app": "DeForestNet API Backend",
-        "status": "Online",
-        "sdg_alignment": ["SDG 13: Climate Action", "SDG 15: Life on Land"],
-        "api_docs": "/docs"
-    }
->>>>>>> Stashed changes
